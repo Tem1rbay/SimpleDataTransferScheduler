@@ -151,10 +151,55 @@ class NetworkScheduler:
         final_schedule = []
         for slot in range(max_slot + 1):
             final_schedule.append(schedule[slot])
-            
+
         return final_schedule
     
-    def print_schedule(self, schedule: List[List[Tuple[str, str]]]) -> None:
+    def optimize_schedule(self, schedule: List[List[Tuple[str, str]]]) -> List[List[List[Tuple[str, str]]]]:
+        optimized_schedule = []
+
+        # function to check if transmission 3 hops away
+        def check_shortest_path(transmission1: Tuple[str, str], transmission2: Tuple[str, str]) -> int:
+            path1 = self.shortest_path[transmission1[0]][transmission2[1]]
+            path2 = self.shortest_path[transmission1[1]][transmission2[0]]
+
+            return min(path1, path2)
+
+        # optimizing transmission into one channel
+        for time_slot, transmissions in enumerate(schedule):
+            channel = []
+            added_transmissions_check = {}
+            for i in range(len(transmissions)):
+                transmission_x = transmissions[i]
+
+                # if transmission already added to one channel, then no need to iterate it 
+                if transmission_x in added_transmissions_check:
+                    continue
+                
+                added_transmissions_check[transmission_x] = True
+                added_transmissions = [transmission_x]
+                for j in range(i+1, len(transmissions)):
+                    transmission_y = transmissions[j]
+                    check = True
+
+                    # iterate through all transmission in one channel
+                    for k_transmission in added_transmissions:
+                        path = check_shortest_path(transmission_y, k_transmission)
+                        if path < 3:
+                            check = False
+                            break
+
+                    # if shortest path is less than 3, then unite in one channel
+                    if check:
+                        added_transmissions.append(transmission_y)
+                        added_transmissions_check[transmission_y] = True
+
+                channel.append(added_transmissions)
+
+            optimized_schedule.append(channel)
+
+        return optimized_schedule
+
+    def print_schedule(self, schedule: List[List[List[Tuple[str, str]]]]) -> None:
         """Print the schedule in a readable format."""
         if not schedule:
             print("\nNo transmissions scheduled.")
@@ -162,10 +207,12 @@ class NetworkScheduler:
             
         print("\nTransmission Schedule:")
         print("---------------------")
-        for time_slot, transmissions in enumerate(schedule):
+        for time_slot, channels in enumerate(schedule):
             print(f"\nTime Slot {time_slot}:")
-            for sender, receiver in transmissions:
-                print(f"  {sender} → {receiver}")
+            for channel_id, transmissions in enumerate(channels):
+                print(f"   Channel Id {channel_id}")
+                for sender, receiver in transmissions:
+                    print(f"      {sender} → {receiver}")
         
         print("\nTransmission Requirements:")
         print("-------------------------")
@@ -193,7 +240,8 @@ def example_usage():
     
     # Generate and print schedule
     schedule = scheduler.generate_schedule()
-    scheduler.print_schedule(schedule)
+    optimized_schedule = scheduler.optimize_schedule(schedule)
+    scheduler.print_schedule(optimized_schedule)
     
 if __name__ == "__main__":
     example_usage()
