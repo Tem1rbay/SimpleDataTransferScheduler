@@ -9,6 +9,7 @@ class NetworkScheduler:
         self.forwarding_paths = defaultdict(list)  # List of paths each packet must take
         self.total_transmissions = defaultdict(lambda: defaultdict(int))  # {sender: {receiver: count}}
         self.interference_graph = defaultdict(set)
+        self.shortest_path = defaultdict(lambda: defaultdict(int)) # {node: {node: count }}
         
     def add_device(self, device_id: str, packets: int) -> None:
         """Add a device with its original packets per frame."""
@@ -20,7 +21,29 @@ class NetworkScheduler:
         if sender not in self.devices or receiver not in self.devices:
             raise ValueError("Both sender and receiver must be added as devices first")
         self.connections[sender].add(receiver)
+
+    def _calculate_shortest_path_between_all_nodes(self) -> None:  # Floyd–Warshall algorithm
+        inf = 1e9 # infinity 
+        shortest_path = defaultdict(lambda: defaultdict(int))
+        for i in self.devices:
+            for j in self.devices:
+                shortest_path[i][j] = inf
         
+        for i in self.devices:
+            shortest_path[i][i] = 0
+        
+        for sender in self.devices:
+            for receiver in self.connections[sender]:
+                shortest_path[sender][receiver] = 1
+                shortest_path[receiver][sender] = 1
+
+        for k_device in self.devices:
+            for i_device in self.devices:
+                for j_device in self.devices:
+                    shortest_path[i_device][j_device] = min(shortest_path[i_device][j_device], 
+                                                                shortest_path[i_device][k_device] + shortest_path[k_device][j_device])
+        self.shortest_path = shortest_path
+
     def _calculate_forwarding_requirements(self) -> None:
         """Calculate all forwarding paths and required transmissions."""
         self.total_transmissions.clear()
@@ -113,6 +136,7 @@ class NetworkScheduler:
         
     def generate_schedule(self) -> List[List[Tuple[str, str]]]:
         """Generate an optimized transmission schedule."""
+        self._calculate_shortest_path_between_all_nodes()
         self._calculate_forwarding_requirements()
         self._build_interference_graph()
         colors = self._color_graph()
