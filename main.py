@@ -22,42 +22,42 @@ class NetworkScheduler:
         self.connections[sender].add(receiver)
         
     def _calculate_forwarding_requirements(self) -> None:
-        """Calculate all forwarding paths and required transmissions."""
+        """Calculate all required transmissions based on packet flows."""
         self.total_transmissions.clear()
         
-        # First, add original packet transmissions
-        for sender in self.devices:
+        # Compute in-degree for topological sorting
+        in_degree = {device: 0 for device in self.devices}
+        for sender in self.connections:
             for receiver in self.connections[sender]:
-                self.total_transmissions[sender][receiver] = self.original_packets[sender]
+                in_degree[receiver] += 1
+                
+        # Initialize queue with devices having in-degree 0
+        queue = deque([device for device in self.devices if in_degree[device] == 0])
         
-        # Then calculate forwarding requirements using BFS for each source-destination pair
-        for source in self.devices:
-            packets = self.original_packets[source]
-            if packets == 0:
-                continue
-                
-            # Find all paths from this source
-            visited = set()
-            queue = deque([(source, [source])])
+        # Initialize packet counts: total_packets[device] = original_packets + received packets
+        total_packets = defaultdict(int)
+        for device in self.devices:
+            total_packets[device] += self.original_packets.get(device, 0)
+        
+        while queue:
+            current = queue.popleft()
+            current_packets = total_packets[current]
             
-            while queue:
-                current, path = queue.popleft()
+            for neighbor in self.connections[current]:
+                # Add current's packets to the neighbor's incoming packets
+                total_packets[neighbor] += current_packets
                 
-                # For each neighbor of the current node
-                for next_node in self.connections[current]:
-                    if next_node not in path:  # Avoid cycles
-                        new_path = path + [next_node]
-                        self.forwarding_paths[source].append(new_path)
-                        
-                        # Add forwarding requirement
-                        if len(new_path) > 2:  # If path requires forwarding
-                            for i in range(len(new_path) - 1):
-                                sender = new_path[i]
-                                receiver = new_path[i + 1]
-                                if i > 0:  # This is a forwarding transmission
-                                    self.total_transmissions[sender][receiver] += packets
-                                    
-                        queue.append((next_node, new_path))
+                # Record the transmission
+                self.total_transmissions[current][neighbor] += current_packets
+                
+                # Decrease in-degree and add to queue if zero
+                in_degree[neighbor] -= 1
+                if in_degree[neighbor] == 0:
+                    queue.append(neighbor)
+                    
+        # Check for cycles
+        if any(degree > 0 for degree in in_degree.values()):
+            raise ValueError("Network topology contains cycles, which is not supported.")
         
     def _build_interference_graph(self) -> None:
         """Build interference graph based on network topology."""
@@ -154,14 +154,18 @@ def example_usage():
     scheduler = NetworkScheduler()
     
     # Add devices (assuming 1 original packet each for simplicity)
-    for device in ['A', 'B', 'C', 'D', 'E']:
+    for device in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
         scheduler.add_device(device, 1)
     
-    # Add transmission paths as shown in the image
+    # Add transmission paths
     scheduler.add_transmission_path('A', 'B')
+    scheduler.add_transmission_path('A', 'C')
+    scheduler.add_transmission_path('B', 'D')
     scheduler.add_transmission_path('C', 'D')
-    scheduler.add_transmission_path('B', 'E')
     scheduler.add_transmission_path('D', 'E')
+    scheduler.add_transmission_path('E', 'F')
+    scheduler.add_transmission_path('F', 'G')
+    scheduler.add_transmission_path('G', 'H')
     
     # Generate and print schedule
     schedule = scheduler.generate_schedule()
