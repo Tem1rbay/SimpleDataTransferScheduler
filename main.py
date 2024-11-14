@@ -224,20 +224,17 @@ class NetworkScheduler:
 def example_usage():
     scheduler = NetworkScheduler()
     
-    # Add devices (assuming 1 original packet each for simplicity)
-    for device in ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']:
-        scheduler.add_device(device, 1)
-    
-    # Add transmission paths
-    scheduler.add_transmission_path('A', 'B')
-    scheduler.add_transmission_path('A', 'C')
-    scheduler.add_transmission_path('B', 'D')
-    scheduler.add_transmission_path('C', 'D')
-    scheduler.add_transmission_path('D', 'E')
-    scheduler.add_transmission_path('E', 'F')
-    scheduler.add_transmission_path('F', 'G')
-    scheduler.add_transmission_path('G', 'H')
-    
+    with open('input.txt', 'r') as f:
+        lines = f.readlines()
+        devices = lines[1].split()
+        packet_numbers = lines[2].split()
+        for device, packet_number in zip(devices, packet_numbers):
+            scheduler.add_device(device, int(packet_number))
+        
+        for line in lines[4:]:
+            sender, receiver = line.split()
+            scheduler.add_transmission_path(sender, receiver)
+
     # Generate and print schedule
     schedule = scheduler.generate_schedule()
     optimized_schedule = scheduler.optimize_schedule(schedule)
